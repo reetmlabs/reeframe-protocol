@@ -1,5 +1,5 @@
 /// Why the Coordinator closed a control channel. The code goes to the backend
-/// as the QUIC application close code.
+/// as the QUIC application close code, or as `4000 + code` on WebSocket.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CloseReason {
     /// The backend closed the channel itself.
@@ -43,6 +43,20 @@ impl CloseReason {
     /// not know, so a newer Coordinator can add codes.
     pub fn from_code(code: u32) -> Option<Self> {
         Self::ALL.into_iter().find(|reason| reason.code() == code)
+    }
+
+    /// The WebSocket close code, `4000 + code()`. 4000 to 4999 is the range
+    /// RFC 6455 leaves to applications.
+    pub fn ws_code(self) -> u16 {
+        4000 + self.code() as u16
+    }
+
+    /// The reason for a WebSocket close code, or `None` for a code this
+    /// version does not know.
+    pub fn from_ws_code(code: u16) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|reason| reason.ws_code() == code)
     }
 
     /// A short text sent along with the close code.
@@ -91,5 +105,17 @@ mod tests {
         }
         assert_eq!(CloseReason::from_code(6), None);
         assert_eq!(CloseReason::try_from(6), Err(6));
+    }
+
+    #[test]
+    fn a_ws_code_converts_back_to_its_reason() {
+        let codes: Vec<u16> = CloseReason::ALL.iter().map(|r| r.ws_code()).collect();
+        assert_eq!(codes, [4000, 4001, 4002, 4003, 4004, 4005]);
+        for reason in CloseReason::ALL {
+            assert_eq!(CloseReason::from_ws_code(reason.ws_code()), Some(reason));
+        }
+        for unknown in [0, 1000, 3999, 4006, 4999] {
+            assert_eq!(CloseReason::from_ws_code(unknown), None);
+        }
     }
 }

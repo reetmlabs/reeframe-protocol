@@ -8,10 +8,36 @@ pub enum Message {
     Ping,
     /// The Coordinator's answer to `ping`.
     Pong,
+    /// Sent by the Coordinator right after a WebSocket connects. `nonce` is
+    /// `NONCE_LEN` random bytes, base64url without padding.
+    Challenge { nonce: String },
+    /// The backend's answer to `challenge`. Both fields are base64url without
+    /// padding: the Ed25519 public key, in the same form as at enrollment, and
+    /// the Ed25519 signature over `auth_payload`.
+    Auth {
+        public_key: String,
+        signature: String,
+    },
+    /// Sent by the Coordinator once `auth` checked out.
+    AuthOk,
     /// Any type this version does not know. Ignored, so either side can add
     /// message types without breaking the other.
     #[serde(other)]
     Unknown,
+}
+
+impl Message {
+    /// Encodes the message as one WebSocket text frame. WSS carries no length
+    /// prefix, since the WebSocket frame already delimits the message.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).expect("a message always serializes")
+    }
+
+    /// Decodes one WebSocket text frame. An unknown `type` gives
+    /// [`Message::Unknown`], like on QUIC.
+    pub fn from_json(json: &str) -> serde_json::Result<Self> {
+        serde_json::from_str(json)
+    }
 }
 
 #[cfg(test)]
@@ -28,6 +54,42 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&Message::Pong).unwrap(),
             r#"{"type":"pong"}"#
+        );
+    }
+
+    #[test]
+    fn login_messages_have_a_fixed_wire_form() {
+        assert_eq!(
+            serde_json::to_string(&Message::Challenge {
+                nonce: "n0nce".into()
+            })
+            .unwrap(),
+            r#"{"type":"challenge","nonce":"n0nce"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&Message::Auth {
+                public_key: "pk".into(),
+                signature: "sig".into()
+            })
+            .unwrap(),
+            r#"{"type":"auth","public_key":"pk","signature":"sig"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&Message::AuthOk).unwrap(),
+            r#"{"type":"auth_ok"}"#
+        );
+    }
+
+    #[test]
+    fn json_helpers_round_trip_and_ignore_unknown_types() {
+        let auth = Message::Auth {
+            public_key: "pk".into(),
+            signature: "sig".into(),
+        };
+        assert_eq!(Message::from_json(&auth.to_json()).unwrap(), auth);
+        assert_eq!(
+            Message::from_json(r#"{"type":"from_the_future","x":1}"#).unwrap(),
+            Message::Unknown
         );
     }
 }
