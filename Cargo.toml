@@ -1,0 +1,16 @@
+[package]
+name = "reeframe-protocol"
+version = "0.1.0"
+edition = "2021"
+description = "Wire protocol of the control channel between the Reeframe backend and the Coordinator"
+license = "Apache-2.0"
+repository = "https://github.com/reetmlabs/reeframe-protocol"
+publish = false
+
+[dependencies]
+tokio = { version = "1", features = ["io-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "macros", "rt"] }
