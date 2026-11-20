@@ -26,6 +26,20 @@ pub enum Message {
     Unknown,
 }
 
+impl Message {
+    /// Encodes the message as one WebSocket text frame. WSS carries no length
+    /// prefix, since the WebSocket frame already delimits the message.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).expect("a message always serializes")
+    }
+
+    /// Decodes one WebSocket text frame. An unknown `type` gives
+    /// [`Message::Unknown`], like on QUIC.
+    pub fn from_json(json: &str) -> serde_json::Result<Self> {
+        serde_json::from_str(json)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,6 +77,19 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&Message::AuthOk).unwrap(),
             r#"{"type":"auth_ok"}"#
+        );
+    }
+
+    #[test]
+    fn json_helpers_round_trip_and_ignore_unknown_types() {
+        let auth = Message::Auth {
+            public_key: "pk".into(),
+            signature: "sig".into(),
+        };
+        assert_eq!(Message::from_json(&auth.to_json()).unwrap(), auth);
+        assert_eq!(
+            Message::from_json(r#"{"type":"from_the_future","x":1}"#).unwrap(),
+            Message::Unknown
         );
     }
 }
