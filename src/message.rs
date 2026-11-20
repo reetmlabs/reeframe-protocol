@@ -13,3 +13,21 @@ pub enum Message {
     #[serde(other)]
     Unknown,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Both sides parse this JSON, so a rename here would break deployed peers.
+    #[test]
+    fn ping_and_pong_have_a_fixed_wire_form() {
+        assert_eq!(
+            serde_json::to_string(&Message::Ping).unwrap(),
+            r#"{"type":"ping"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&Message::Pong).unwrap(),
+            r#"{"type":"pong"}"#
+        );
+    }
+}
