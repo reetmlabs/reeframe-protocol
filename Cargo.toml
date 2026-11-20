@@ -5,7 +5,6 @@ edition = "2021"
 description = "Wire protocol of the control channel between the Reeframe backend and the Coordinator"
 license = "Apache-2.0"
 repository = "https://github.com/reetmlabs/reeframe-protocol"
-publish = false
 
 [dependencies]
 tokio = { version = "1", features = ["io-util"] }
