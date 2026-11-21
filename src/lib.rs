@@ -4,11 +4,13 @@
 mod close;
 mod frame;
 mod message;
+mod session;
 mod ws;
 
 pub use close::CloseReason;
 pub use frame::{read_message, write_message, MAX_FRAME_LEN};
 pub use message::Message;
+pub use session::{session_error, IceServer};
 pub use ws::{auth_payload, NONCE_LEN, NONCE_TTL, WS_PATH};
 
 /// ALPN protocol id of the control channel. Bump the version suffix only for

@@ -87,4 +87,95 @@ mod tests {
         let mut reader = frame.as_slice();
         assert!(read_message(&mut reader).await.is_err());
     }
+
+    fn session_messages() -> Vec<Message> {
+        vec![
+            Message::SessionOffer {
+                session_id: "0b6f7c3e-4c1a-4f0e-9a51-2d3c1f6b8e10".into(),
+                sdp: "v=0\r\na=group:BUNDLE 0\r\n".into(),
+                ice_servers: vec![
+                    crate::IceServer {
+                        urls: vec!["stun:stun.example.com:3478".into()],
+                        username: None,
+                        credential: None,
+                    },
+                    crate::IceServer {
+                        urls: vec!["turn:turn.example.com:3478".into()],
+                        username: Some("user".into()),
+                        credential: Some("secret".into()),
+                    },
+                ],
+                site_token: "header.claims.signature".into(),
+            },
+            Message::SessionAnswer {
+                session_id: "s1".into(),
+                sdp: "v=0\r\n".into(),
+            },
+            Message::SessionCandidate {
+                session_id: "s1".into(),
+                candidate: "candidate:1 1 udp 2122260223 192.0.2.1 54400 typ host".into(),
+                sdp_mid: Some("0".into()),
+                sdp_mline_index: Some(0),
+            },
+            Message::SessionCandidate {
+                session_id: "s1".into(),
+                candidate: "candidate:1".into(),
+                sdp_mid: None,
+                sdp_mline_index: None,
+            },
+            Message::SessionClose {
+                session_id: "s1".into(),
+                reason: "client left".into(),
+            },
+            Message::SessionError {
+                session_id: "s1".into(),
+                code: crate::session_error::INVALID_OFFER.into(),
+                message: "no video section".into(),
+            },
+        ]
+    }
+
+    #[tokio::test]
+    async fn session_messages_survive_the_quic_framing() {
+        let mut buffer = Vec::new();
+        for message in session_messages() {
+            write_message(&mut buffer, &message).await.unwrap();
+        }
+        let mut reader = buffer.as_slice();
+        for message in session_messages() {
+            assert_eq!(read_message(&mut reader).await.unwrap(), Some(message));
+        }
+        assert_eq!(read_message(&mut reader).await.unwrap(), None);
+    }
+
+    #[test]
+    fn session_messages_survive_the_websocket_encoding() {
+        for message in session_messages() {
+            assert_eq!(Message::from_json(&message.to_json()).unwrap(), message);
+        }
+    }
+
+    // A real SDP is under 10 KiB. Twice that, with CRLF line ends that JSON
+    // escapes, plus TURN servers and a site JWT, must still fit in one frame.
+    #[tokio::test]
+    async fn a_large_session_offer_fits_in_one_frame() {
+        let sdp = "a=candidate:1 1 udp 2122260223 192.0.2.1 54400 typ host\r\n".repeat(400);
+        assert!(sdp.len() > 20 * 1024);
+        let offer = Message::SessionOffer {
+            session_id: "0b6f7c3e-4c1a-4f0e-9a51-2d3c1f6b8e10".into(),
+            sdp,
+            ice_servers: vec![
+                crate::IceServer {
+                    urls: vec!["turn:turn.example.com:3478?transport=udp".into(); 4],
+                    username: Some("u".repeat(200)),
+                    credential: Some("c".repeat(200)),
+                };
+                4
+            ],
+            site_token: "t".repeat(2048),
+        };
+        let mut buffer = Vec::new();
+        write_message(&mut buffer, &offer).await.unwrap();
+        assert!(buffer.len() < MAX_FRAME_LEN as usize / 2);
+    }
 }
