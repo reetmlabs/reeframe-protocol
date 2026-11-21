@@ -55,11 +55,49 @@ On WebSocket the close code is `4000 + n` for the `CloseReason` code `n`
 This crate has no crypto dependencies. Signing and verifying happen in the
 backend and the Coordinator.
 
+## WebRTC sessions
+
+The control channel also carries the signaling of WebRTC sessions between a
+client and the backend, relayed by the Coordinator. Every session message
+names its session by `session_id`, a UUID the Coordinator picks.
+
+| Message | Direction | Fields |
+|---|---|---|
+| `session_offer` | Coordinator -> backend | `session_id`, `sdp`, `ice_servers`, `site_token` |
+| `session_answer` | backend -> Coordinator | `session_id`, `sdp` |
+| `session_candidate` | Coordinator -> backend | `session_id`, `candidate`, `sdp_mid`, `sdp_mline_index` |
+| `session_close` | either | `session_id`, `reason` |
+| `session_error` | backend -> Coordinator | `session_id`, `code`, `message` |
+
+Flow:
+
+1. The Coordinator sends `session_offer` with the client's SDP offer, the
+   STUN/TURN servers to use, and `site_token`, a Coordinator-signed site JWT
+   with `aud` set to the backend's id. The backend verifies the token.
+2. The backend answers with `session_answer`. Its SDP already holds all of
+   the backend's ICE candidates; the backend does not trickle.
+3. While the client trickles, the Coordinator relays each client candidate
+   as `session_candidate`. `sdp_mid` and `sdp_mline_index` may be `null`.
+4. Either side ends the session with `session_close`. If the backend cannot
+   start or keep a session, it sends `session_error` instead, with a `code`
+   such as `too_many_sessions`, `invalid_token` or `invalid_offer` (see
+   `session_error::*`). New codes may appear, so treat unknown codes as a
+   generic failure.
+
+`ice_servers` entries look like WebRTC's `RTCIceServer`:
+`{"urls":["turn:turn.example.com:3478"],"username":"...","credential":"..."}`.
+`username` and `credential` are left out when not set.
+
+Size: a session offer must fit in one QUIC frame of `MAX_FRAME_LEN` (64 KiB).
+An SDP is usually under 10 KiB. JSON escapes each CRLF line end as `\r\n`,
+which adds 2 bytes per SDP line. A test checks that an offer with a 22 KiB
+SDP, four TURN servers and a 2 KiB token stays under 32 KiB.
+
 ## Usage
 
 ```toml
 [dependencies]
-reeframe-protocol = { git = "https://github.com/reetmlabs/reeframe-protocol", tag = "v0.2.0" }
+reeframe-protocol = { git = "https://github.com/reetmlabs/reeframe-protocol", tag = "v0.3.0" }
 ```
 
 ```rust
