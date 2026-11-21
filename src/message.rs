@@ -45,7 +45,7 @@ pub enum Message {
     /// Ends a session. Either side may send it.
     SessionClose { session_id: String, reason: String },
     /// Sent by the backend when it cannot start or keep a session. `code` is
-    /// machine-readable, see `session_error`; `message` is for humans.
+    /// machine-readable, see [`crate::session_error`]; `message` is for humans.
     SessionError {
         session_id: String,
         code: String,

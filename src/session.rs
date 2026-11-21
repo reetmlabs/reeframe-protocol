@@ -14,6 +14,17 @@ pub struct IceServer {
     pub credential: Option<String>,
 }
 
+/// Known `code` values of `Message::SessionError`. The field stays a string,
+/// so a newer backend can send codes this version does not list.
+pub mod session_error {
+    /// The backend already runs as many sessions as it allows.
+    pub const TOO_MANY_SESSIONS: &str = "too_many_sessions";
+    /// The `site_token` of the offer did not verify.
+    pub const INVALID_TOKEN: &str = "invalid_token";
+    /// The SDP of the offer could not be used.
+    pub const INVALID_OFFER: &str = "invalid_offer";
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
