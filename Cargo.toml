@@ -1,6 +1,6 @@
 [package]
 name = "reeframe-protocol"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Wire protocol of the control channel between the Reeframe backend and the Coordinator"
 license = "Apache-2.0"
